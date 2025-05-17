@@ -1,0 +1,7 @@
+{
+    "dependencies": ["."],
+
+    "graphs": {
+        "agent": "implementation:rag_agent"
+    }
+}
