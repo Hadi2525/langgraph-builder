@@ -1,4 +1,7 @@
 langgraph==0.4.3
 langgraph-cli==0.2.10
 langgraph-api==0.2.27
-
+pypdf==5.5.0
+chromadb==1.0.9
+uvicorn==0.34.2
+fastapi==0.115.9
