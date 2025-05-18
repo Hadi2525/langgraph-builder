@@ -15,16 +15,20 @@ nodes:
   - name: RefineAgent
   - name: Retrieve
   - name: EvaluateAgent
+  - name: CorrectAgent
   - name: SummaryAgent
 edges:
-  - from: __start__
-    to: RefineAgent
   - from: SummaryAgent
     to: __end__
+  - from: Retrieve
+    to: EvaluateAgent
+  - from: CorrectAgent
+    to: Retrieve
   - from: RefineAgent
     to: Retrieve
+  - from: __start__
+    condition: FirstCheck
+    paths: [RefineAgent, SummaryAgent]
   - from: EvaluateAgent
-    to: RefineAgent
-  - from: Retrieve
-    condition: conditional_edge_1
-    paths: [EvaluateAgent, SummaryAgent]
+    condition: CheckRAG
+    paths: [CorrectAgent, SummaryAgent]

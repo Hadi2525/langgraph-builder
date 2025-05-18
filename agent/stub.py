@@ -1,6 +1,6 @@
 """This is an automatically generated file. Do not modify it.
 
-This file was generated using `langgraph-gen` version 0.0.3.
+This file was generated using `langgraph-gen` version 0.0.6.
 To regenerate this file, run `langgraph-gen` with the source `yaml` file as an argument.
 
 Usage:
@@ -55,6 +55,11 @@ def SummaryAgent(state: SomeState) -> dict:
     }
 
 
+def FirstCheck(state: SomeState) -> str:
+    print("In condition: FirstCheck")
+    raise NotImplementedError("Implement me.")
+
+
 def CheckRAG(state: SomeState) -> str:
     print("In condition: CheckRAG")
     raise NotImplementedError("Implement me.")
@@ -68,6 +73,7 @@ agent = CustomAgent(
         ("EvaluateAgent", EvaluateAgent),
         ("CorrectAgent", CorrectAgent),
         ("SummaryAgent", SummaryAgent),
+        ("FirstCheck", FirstCheck),
         ("CheckRAG", CheckRAG),
     ]
 )
@@ -79,7 +85,7 @@ print(compiled_agent.invoke({"foo": "bar"}))
 
 from typing import Callable, Any, Optional, Type
 
-from langgraph.constants import START, END
+from langgraph.constants import START, END  # noqa: F401
 from langgraph.graph import StateGraph
 
 
@@ -107,6 +113,7 @@ def CustomAgent(
         "EvaluateAgent",
         "CorrectAgent",
         "SummaryAgent",
+        "FirstCheck",
         "CheckRAG",
     }
 
@@ -129,11 +136,18 @@ def CustomAgent(
     builder.add_node("SummaryAgent", nodes_by_name["SummaryAgent"])
 
     # Add edges
-    builder.add_edge(START, "RefineAgent")
     builder.add_edge("SummaryAgent", END)
-    builder.add_edge("RefineAgent", "Retrieve")
     builder.add_edge("Retrieve", "EvaluateAgent")
     builder.add_edge("CorrectAgent", "Retrieve")
+    builder.add_edge("RefineAgent", "Retrieve")
+    builder.add_conditional_edges(
+        START,
+        nodes_by_name["FirstCheck"],
+        [
+            "RefineAgent",
+            "SummaryAgent",
+        ],
+    )
     builder.add_conditional_edges(
         "EvaluateAgent",
         nodes_by_name["CheckRAG"],

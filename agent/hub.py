@@ -37,10 +37,32 @@ class State(TypedDict):
     refined_query: str
     evaluation_result: Literal["CorrectAgent", "SummaryAgent"]
     attempted_retrieval: int
+    summary: str
 
 class EvaluateAgentState(TypedDict):
     """State for the EvaluateAgent."""
     evaluation_result: str
+
+def FirstCheck(state: State) -> str:
+    """This is the first conditional check to make sure the user's input is relevant to the underlying vector store."""
+    system = """
+    You are a helpful assistant. Your task is to check if the user's query is relevant to async programming and asyncio in Python.
+    Given the query, determine if it is relevant to the vector store. The underlying vector store is about a book completely focused on async programming and
+    asyncio in Python. This book is written by Caleb. Anything relevant you should return "RefineAgent". Use your best judgment
+    if you find the query not relevant return "SummaryAgent".
+    """
+    check_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("ai", "User query:\n {query}\n Relevance check result:\n\n")
+        ]
+    )
+    check_llm = llm.with_structured_output(EvaluateAgentState)
+    check_chain = check_prompt | check_llm | StrOutputParser()
+    result = check_chain.invoke({"query": state["query"]})
+    if result['evaluation_result'] == "SummaryAgent":
+        return "SummaryAgent"
+    return "RefineAgent"
 
 # Define stand-alone functions
 def RefineAgent(state: State) -> dict:
@@ -115,22 +137,69 @@ def EvaluateAgent(state: State) -> dict:
     return state
 
 def CheckRAG(state: State) -> str:
-    print("In condition: CheckRAG")
-    raise NotImplementedError("Implement me.")
+    """Checks to make sure the retrieval was successful and the documents are relevant.
+    If the retrieval was not successful, return "CorrectAgent". If the retrieval was successful, return "SummaryAgent".
+    """
+    if state["attempted_retrieval"] < 3 and state["evaluation_result"] == "CorrectAgent":
+        return "CorrectAgent"
+    return "SummaryAgent"
 
 
 def CorrectAgent(state: State) -> dict:
-    print("In node: CorrectAgent")
-    return {
-        # Add your state update logic here
-    }
+    """This is an agent based state that works on re-evaluating the user's query and attempting to work on refining the query
+    and then re-attempting the retrieval.
+    """
+    system = """
+    You are a helpful assistant. Your task is to correct the user'squery based on the retrieved documents.
+    You are given the refined query, retrieved documents, and the original query.
+    If the refined query is not relevant and the retrieved documents are not useful,
+    then identify the gaps in the user's query and suggest improvements.
+    Re phrase the query and suggest a new query that has a similar semantics to the original query and
+    has the tone akin to the retrieved documents.
+    """
+    correct_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("ai", "Original query:\n {query}\n Refined query:\n {refined_query}\n Retrieved documents:\n {citations}\n Corrected query:\n\n")
+        ]
+    )
+    correct_chain = correct_prompt | llm | StrOutputParser()
+    result = correct_chain.invoke({
+        "query": state["query"],
+        "refined_query": state["refined_query"],
+        "citations": state["citations"]
+    })
+    state["corrected_query"] = result
+
+    return state
 
 
 def SummaryAgent(state: State) -> dict:
-    print("In node: SummaryAgent")
-    return {
-        # Add your state update logic here
-    }
+    """This is an agent based state that summarizes the retrieved documents.
+    The summary is based on the refined query and the retrieved documents.
+    """
+    system = """
+    If the retrieved
+    documents are empty or None then simply respond with your general knowledge about the query in a very polite and friendly tone. In
+    this case encourage the user to ask question regarding the context of the documents.
+    You are a helpful assistant. Your task is to summarize the retrieved documents based on the refined query.
+    Given the refined query and the retrieved documents, provide a concise summary of the key points and insights.
+    Use the retrieved documents to support your summary and provide a clear and informative response. 
+
+    """
+    summary_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("ai", "Refined query:\n {refined_query}\n Retrieved documents:\n {citations}\n Summary:\n\n")
+        ]
+    )
+    summary_chain = summary_prompt | llm | StrOutputParser()
+    result = summary_chain.invoke({
+        "refined_query": state["refined_query"],
+        "citations": state["citations"]
+    })
+    state["summary"] = result
+    return state
 
 
 agent = CustomAgent(
@@ -141,6 +210,7 @@ agent = CustomAgent(
         ("EvaluateAgent", EvaluateAgent),
         ("CorrectAgent", CorrectAgent),
         ("SummaryAgent", SummaryAgent),
+        ("FirstCheck", FirstCheck),
         ("CheckRAG", CheckRAG),
     ],
 )
@@ -149,11 +219,12 @@ compiled_agent = agent.compile()
 
 
 sample_state = State(
-    query="Give me some examples of building async functions in python give full tutorial instructions?",
+    query="compare one sync and one async function in python and show the computation time difference?",
     citations=[],
     corrected_query="",
     refined_query="",
     evaluation_result="",
-    attempted_retrieval=0
+    attempted_retrieval=0,
+    summary=""
 )
 print(compiled_agent.invoke(sample_state))
