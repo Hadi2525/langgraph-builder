@@ -218,13 +218,3 @@ agent = CustomAgent(
 compiled_agent = agent.compile()
 
 
-sample_state = State(
-    query="compare one sync and one async function in python and show the computation time difference?",
-    citations=[],
-    corrected_query="",
-    refined_query="",
-    evaluation_result="",
-    attempted_retrieval=0,
-    summary=""
-)
-print(compiled_agent.invoke(sample_state))
