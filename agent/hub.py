@@ -35,7 +35,7 @@ class State(TypedDict):
     citations: list[str]
     corrected_query: str
     refined_query: str
-    evaluation_result: Literal["CorrectAgent", "SummaryAgent"]
+    evaluation_result: Literal["CorrectAgent", "SummaryAgent", "Init"]
     attempted_retrieval: int
     summary: str
 
@@ -64,7 +64,6 @@ def FirstCheck(state: State) -> str:
         return "SummaryAgent"
     return "RefineAgent"
 
-# Define stand-alone functions
 def RefineAgent(state: State) -> dict:
     """This is an agent based state that refines the user's query."""
     query = state.get('query')
